@@ -1,2 +1,2 @@
-from titaMusicFile import main
+from titaMusic import main
 main()

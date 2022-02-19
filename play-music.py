@@ -1,30 +1,19 @@
-import sys, magic, random, json, os
-from pathlib import Path
-
-def is_audio(audio):
-	return audio.is_file() and magic.from_file(audio, mime=True).split('/')[0] == 'audio'
+import sys, json, os
+from util import *
 
 if len(sys.argv) == 1:
-	path = Path(__file__).absolute().parent / '__private__/celtic.opus'
+    CONFIG = read_config()
+    if 'default' not in CONFIG:
+        exit(-1)
+
+    path = dir_path / CONFIG['default']
 else:
-	path = Path(sys.argv[1]).resolve()
+    path = Path(sys.argv[1]).resolve()
 print("Play files in", str(path))
 
-dest = str((Path.home() / 'tmp-playlist.m3u').resolve())
-
-lines = ['#EXTM3U']
-audio_files = []
-
-if path.is_file():
-	audio_files.append(path)
-else:
-	for audio in path.iterdir():
-		if is_audio(audio):
-			audio_files.append(audio)
-	random.shuffle(audio_files)
-
-pipe_path = "/tmp/titapipe"
+audio_files = [str(p) for p in get_files_in(path)]
+print(audio_files)
 with open(pipe_path, 'w') as fifo_write:
-	fifo_write.write(json.dumps([str(p) for p in audio_files]))
+    fifo_write.write(json.dumps(audio_files))
 
-os.system("tree -L 4 -dNFl --prune --noreport")
+os.system("tree -L 4 -dNFln --prune --noreport")
