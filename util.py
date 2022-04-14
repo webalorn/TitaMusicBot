@@ -1,8 +1,24 @@
 import yaml, magic, random
 from pathlib import Path
+import subprocess
+import os
 
 dir_path = Path(__file__).absolute().parent
 pipe_path = "/tmp/titapipe"
+
+def format_time(seconds):
+    return f'{(seconds//3600)%24:02d}:{(seconds//60)%60:02d}:{seconds%60:02d}'
+
+# ========== PIPE & COMMUNICATION ==========
+
+def open_pipe_read():
+    if os.path.exists(pipe_path):
+        os.remove(pipe_path)
+    os.mkfifo(pipe_path)
+    pipe_fd = os.open(pipe_path, os.O_RDONLY | os.O_NONBLOCK)
+    return os.fdopen(pipe_fd)
+
+# ========== FILES ==========
 
 
 def is_audio(audio):
@@ -29,3 +45,16 @@ def get_files_in(path):
                 break
 
         return audio_files
+
+
+# ========== AUDIO ==========
+
+def get_audio_duration(source):
+    ffprobe = f'ffprobe -i {source} -show_entries format=duration -v quiet -of csv="p=0"'
+    output = subprocess.check_output(ffprobe, shell=True)
+    return float(output.decode('utf-8'))
+
+def get_random_audio_point(source, end_max=1, fomat=True):
+    duration = get_audio_duration(source)
+    point = int(random.random() * end_max * duration)
+    return format_time(point) if format else point

@@ -1,20 +1,22 @@
 import sys, json, os
 from util import *
 
-COMMANDS = ['pause', 'stop', 'next', 'skip', 'play', 'resume', 'leave']
+COMMANDS = ['pause', 'stop', 'next', 'skip', 'resume', 'leave']
+PLAY_COMMANDS = ['play', 'once', 'mix', 'start']
+PLAY_AUTO_COMMANDS = ['default', 'def']
 # Other commands : once
-print(['once', 'pause', 'resume', 'next', 'leave', 'mix'])
+print(['once', 'pause', 'resume', 'next', 'leave', 'mix', 'start'])
 
 if len(sys.argv) >=1 and sys.argv[1] in COMMANDS:
     command = {'cmd': sys.argv[1], 'args': sys.argv[2:]}
 else:
     files = sys.argv[1]
     cmd_name = 'play'
-    if files in ['once', 'mix']:
+    if files in PLAY_COMMANDS:
         cmd_name = files
         files = sys.argv[2]
 
-    if files in ['default', 'def']:
+    if files in PLAY_AUTO_COMMANDS:
         CONFIG = read_config()
         if 'default' not in CONFIG:
             exit(-1)
