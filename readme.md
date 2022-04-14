@@ -2,10 +2,14 @@
 
 A bot to play audio files stored on your computer to a discord channel.
 
+File names :
+- If a some files names starts with `(A)`, one of them will be the first song in the playlist
+- If a file name contains `mix`, the music will start at some random moment.
+
 ## Dependencies
 
 ```bash
-python3 -m pip install -U discord.py[voice] pyyaml python-magic
+python3 -m pip install -U "discord.py[voice]" pyyaml python-magic
 ```
 
 You should also have the command `tree` installed (`apt install tree` on Ubuntu/Debian).

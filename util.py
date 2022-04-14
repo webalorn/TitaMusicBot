@@ -21,4 +21,11 @@ def get_files_in(path):
             if is_audio(audio):
                 audio_files.append(audio)
         random.shuffle(audio_files)
+        print(audio_files)
+
+        for i, audio in enumerate(audio_files):
+            if audio.name.startswith('(A)'):
+                audio_files[0], audio_files[i] = audio_files[i], audio_files[0]
+                break
+
         return audio_files

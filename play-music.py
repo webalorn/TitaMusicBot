@@ -1,19 +1,33 @@
 import sys, json, os
 from util import *
 
-if len(sys.argv) == 1:
-    CONFIG = read_config()
-    if 'default' not in CONFIG:
-        exit(-1)
+COMMANDS = ['pause', 'stop', 'next', 'skip', 'play', 'resume', 'leave']
+# Other commands : once
+print(['once', 'pause', 'resume', 'next', 'leave', 'mix'])
 
-    path = dir_path / CONFIG['default']
+if len(sys.argv) >=1 and sys.argv[1] in COMMANDS:
+    command = {'cmd': sys.argv[1], 'args': sys.argv[2:]}
 else:
-    path = Path(sys.argv[1]).resolve()
-print("Play files in", str(path))
+    files = sys.argv[1]
+    cmd_name = 'play'
+    if files in ['once', 'mix']:
+        cmd_name = files
+        files = sys.argv[2]
 
-audio_files = [str(p) for p in get_files_in(path)]
-print(audio_files)
+    if files in ['default', 'def']:
+        CONFIG = read_config()
+        if 'default' not in CONFIG:
+            exit(-1)
+        path = dir_path / CONFIG['default']
+    else:
+        path = Path(files).resolve()
+    print("Play files in", str(path))
+
+    audio_files = [str(p) for p in get_files_in(path)]
+    print(audio_files)
+    command = {'cmd': cmd_name, 'args': audio_files}
+
 with open(pipe_path, 'w') as fifo_write:
-    fifo_write.write(json.dumps(audio_files))
+    fifo_write.write(json.dumps(command))
 
 os.system("tree -L 4 -dNFln --prune --noreport")
