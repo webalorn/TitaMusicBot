@@ -7,6 +7,7 @@ from pathlib import Path
 import yaml
 import discord
 from discord.ext import commands, tasks
+import youtube_dl
 
 from util import *
 
@@ -14,6 +15,30 @@ from util import *
 
 CONFIG = read_config()
 pipe = open_pipe_read()
+ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
+
+# ========== MUSIC FROM YT ==========
+
+
+class YTDLSource(discord.PCMVolumeTransformer):
+    def __init__(self, source, *, data, volume=1):
+        super().__init__(source, volume)
+
+        self.data = data
+
+        self.title = data.get('title')
+        self.url = data.get('url')
+
+    @classmethod
+    def from_url(cls, url, *, loop=None, stream=False):
+        data = ytdl.extract_info(url, download=not stream)
+
+        if 'entries' in data:
+            # take first item from a playlist
+            data = data['entries'][0]
+
+        filename = data['url'] if stream else ytdl.prepare_filename(data)
+        return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
 
 # ========== BOT ==========
 
@@ -33,13 +58,19 @@ def play_next(play_channel):
 
     options = []
     if MODE_MIX is None and 'mix' in Path(source).name.lower():
-        MODE_MIX = True
+        MODE_MIX = 'once'
     if MODE_MIX:
-        MODE_MIX = False
         start_at = get_random_audio_point(source, end_max=0.9)
         options.append(f'-ss {start_at}')
+        if MODE_MIX == 'once':
+            MODE_MIX = None
 
-    audio_source = discord.FFmpegOpusAudio(source=source, options=' '.join(options))
+    if is_youtube(source):
+        audio_source = YTDLSource.from_url(source, stream=True)
+        name = audio_source.title
+    else:
+        audio_source = discord.FFmpegOpusAudio(source=source, options=' '.join(options))
+        name = Path(source).stem
 
     next_action = lambda e: play_next(play_channel)
     if MODE_ONCE:
@@ -47,7 +78,6 @@ def play_next(play_channel):
 
     play_channel.play(audio_source, after=next_action)
 
-    name = Path(source).stem
     asyncio.run_coroutine_threadsafe(
         bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=name)),
         bot.loop)

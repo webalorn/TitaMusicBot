@@ -2,12 +2,31 @@ import yaml, magic, random
 from pathlib import Path
 import subprocess
 import os
+import youtube_dl
 
 dir_path = Path(__file__).absolute().parent
 pipe_path = "/tmp/titapipe"
 
 def format_time(seconds):
     return f'{(seconds//3600)%24:02d}:{(seconds//60)%60:02d}:{seconds%60:02d}'
+
+youtube_dl.utils.bug_reports_message = lambda: ''
+ytdl_format_options = {
+    'format': 'bestaudio/best',
+    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+    'restrictfilenames': True,
+    'noplaylist': True,
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'auto',
+    'source_address': '0.0.0.0',  # bind to ipv4 since ipv6 addresses cause issues sometimes
+}
+ffmpeg_options = {
+    'options': '-vn',
+}
 
 # ========== PIPE & COMMUNICATION ==========
 
@@ -20,6 +39,8 @@ def open_pipe_read():
 
 # ========== FILES ==========
 
+def is_youtube(url):
+    return 'www.youtube.com/watch' in url
 
 def is_audio(audio):
     return audio.is_file() and magic.from_file(audio, mime=True).split('/')[0] == 'audio'
