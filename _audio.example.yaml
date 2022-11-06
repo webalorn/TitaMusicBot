@@ -1,0 +1,10 @@
+list_files: false
+list_dirs: true
+hidden: false
+files_first: true
+show_symlink_origin: false
+show_depth: 3
+right_side: []
+order_top: []
+order_bottom: []
+hide: []

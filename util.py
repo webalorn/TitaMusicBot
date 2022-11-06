@@ -2,6 +2,7 @@ import yaml, magic, random
 from pathlib import Path
 import subprocess
 import os, sys
+import unicodedata
 import youtube_dl
 from itertools import zip_longest
 
@@ -99,11 +100,14 @@ COLORS = {
 
 """
 Option file: _audio.yaml
-Exemple:
+Example:
 
 list_files: true / false [false]
 list_dirs: true / false [true]
 hidden: true / false [false]
+files_first: true / false [true]
+show_symlink_origin: true / false [false]
+show_depth: X
 right_side:
     - subdir_name
     - ...
@@ -111,6 +115,10 @@ order_top:
     - subdir_name
     - ...
 order_bottom:
+    - subdir_name
+    - ...
+hide:
+    - file_name
     - subdir_name
     - ...
 
@@ -131,19 +139,27 @@ def build_file_structure(path, depth, max_depth, underline_file):
         dir_data['symlink'] = str(path.readlink())
     if underline_file and underline_file == path.resolve():
         dir_data['underline'] = True
+
+    options_file = path / '_audio.yaml'
+    if options_file.exists():
+        with options_file.open() as f:
+            dir_data['options'] = yaml.safe_load(f)
+        if dir_data['options'].get('hidden', False):
+            return None
+        if 'show_depth' in dir_data['options']:
+            max_depth = depth + dir_data['options']['show_depth']
+    
+    to_hide = dir_data['options'].get('hide', [])
+
     for subpath in path.iterdir():
-        if subpath.is_file():
-            if subpath.name == '_audio.yaml':
-                with subpath.open() as f:
-                    dir_data['options'] = yaml.safe_load(f)
-                if dir_data['options'].get('hidden', False):
-                    return None
-            elif subpath.name[0] != '.' and subpath.suffix not in IGNORE_EXTS:
-                dir_data['files'].append(subpath.name)
-        elif max_depth > 1:
-            sub_struct = build_file_structure(subpath, depth+1, max_depth, underline_file)
-            if sub_struct:
-                dir_data['subdirs'].append(sub_struct)
+        if not subpath.name in to_hide:
+            if subpath.is_file():
+                if subpath.name[0] != '.' and subpath.suffix not in IGNORE_EXTS:
+                    dir_data['files'].append(subpath.name)
+            elif max_depth > 1:
+                sub_struct = build_file_structure(subpath, depth+1, max_depth, underline_file)
+                if sub_struct:
+                    dir_data['subdirs'].append(sub_struct)
 
     if not dir_data['files'] and not dir_data['subdirs']:
         return None
@@ -188,12 +204,12 @@ def print_structure(structure, stack_last_child, column, right_col=None, underli
             music_count = len(structure['files'])
             mix_count = sum(['mix' in f for f in structure['files']])
             if mix_count:
-                count = f' [{music_count-mix_count}/{mix_count}]'
+                count = f' [{music_count-mix_count}|{mix_count}]'
             else:
                 count = f' [{music_count}]'
 
         column.append(f"{indent}{color}{structure['name']}/{COLORS['reset']}{COLORS['yellow_dim']}{count}{COLORS['reset']}")
-        if structure['symlink']:
+        if structure['symlink'] and structure['options'].get('show_symlink_origin', False):
             column[-1] += (' -> ' + structure['symlink'])
 
         at_right = structure["options"].get("right_side", [])
@@ -201,10 +217,14 @@ def print_structure(structure, stack_last_child, column, right_col=None, underli
         if structure['options'].get('list_files', False):
             subs.extend(structure['files'])
         if structure['options'].get('list_dirs', True):
-            subs.extend(structure['subdirs'])
+            if structure['options'].get('files_first', True):
+                subs.extend(structure['subdirs'])
+            else:
+                subs = structure['subdirs'] + subs
 
         subs_top, subs_mid, subs_bottom = [], [], []
         order_top = structure['options'].get('order_top', [])
+        order_top.extend(at_right)
         order_bottom = structure['options'].get('order_bottom', [])
         for sub_struct in subs:
             if get_name(sub_struct) in order_top:
@@ -227,7 +247,7 @@ def print_structure(structure, stack_last_child, column, right_col=None, underli
             stack_last_child.pop()
 
 def real_len(string):
-    return len(string) - string.count('\033') * 5
+    return len(unicodedata.normalize('NFC', string)) - string.count('\033') * 5
 
 def show_files_in(path, underline_file=None):
     path = Path(path)
@@ -235,8 +255,14 @@ def show_files_in(path, underline_file=None):
     col_width = os.get_terminal_size().columns // 2
 
     left_col, right_col = [], []
-
     print_structure(structure, [], left_col, right_col, underline_file=underline_file)
+
+    if right_col:
+        if len(left_col) < len(right_col):
+            left_col = [None] * (len(right_col) - len(left_col)) + left_col
+        if len(right_col) < len(left_col):
+            right_col = [None] * (len(left_col) - len(right_col)) + right_col
+
     for left_str, right_str in zip_longest(left_col, right_col):
         if left_str:
             sys.stdout.write(left_str)

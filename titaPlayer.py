@@ -1,6 +1,7 @@
 import time
 import os
 import json
+import sys
 from collections import deque
 import threading
 from queue import Queue, Empty
@@ -16,6 +17,10 @@ ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
 # ========== PLAYER ==========
 
+def update_state(state):
+    sys.stdout.write("\033[K")
+    print(state, end='\r')
+
 class Player():
     def __init__(self):
         self.proc = None
@@ -24,12 +29,20 @@ class Player():
     def is_playing(self):
         return self.proc is not None and self.proc.poll() is None
 
-    def stop(self):
+    def stop(self, show_state=True):
         if self.is_playing():
             self.proc.kill()
+        if show_state:
+            if PAUSE:
+                if song_queue:
+                    update_state(f"⏸  Pause {COLORS['yellow_dim']}(next: {song_queue[-1]}){COLORS['reset']}")
+                else:
+                    update_state(f"⏸  Pause")
+            else:
+                update_state(f"⏹  Currently not playing")
 
-    def play(self, source, start_at=None):
-        self.stop()
+    def play(self, source, start_at=None, show_state=True):
+        self.stop(show_state=False)
         start_at = start_at or "00:00:00"
         self.proc = subprocess.Popen(
             f"ffplay -autoexit -nodisp -volume {self.volume} -ss {start_at} \"{source}\"",
@@ -37,6 +50,8 @@ class Player():
             stdout=subprocess.DEVNULL,
             stderr=subprocess.STDOUT,
         )
+        if show_state:
+            update_state(f"⏯  Playing {COLORS['cyan']}{source}{COLORS['reset']} ♪♫🎶")
 
 player = Player()
 song_queue = deque()
@@ -74,6 +89,8 @@ key_queue = Queue()
 event_thread = threading.Thread(target=run_event_loop, args=[key_queue])
 event_thread.start()
 
+print("[♫♫ Music player ready ♫♫]")
+
 while True:
     if not player.is_playing() and not PAUSE:
         play_next()
@@ -94,9 +111,12 @@ while True:
                 song_queue.clear()
                 song_queue.extend(args)
                 play_next()
-        elif cmd in ['pause', 'stop']:
-            player.stop()
+        elif cmd == 'pause':
             PAUSE = True
+            player.stop()
+        elif cmd == 'stop':
+            player.stop()
+            song_queue.clear()
         elif cmd in ['next', 'skip', 'resume']:
             if cmd == 'resume' and song_queue:
                 song_queue.appendleft(song_queue.pop())
@@ -117,8 +137,8 @@ while True:
                     song_queue.appendleft(song_queue.pop())
                     play_next()
                 else:
-                    player.stop()
                     PAUSE = True
+                    player.stop()
             elif key == 'previous':
                 player.stop()
                 song_queue.appendleft(song_queue.pop())
