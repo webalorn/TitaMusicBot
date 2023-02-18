@@ -1,11 +1,16 @@
-import yaml, magic, random
-from pathlib import Path
-import subprocess
-import os, sys
+import os
+import sys
+import time
 import copy
+import yaml
+import random
+import subprocess
 import unicodedata
-import youtube_dl
+from pathlib import Path
 from itertools import zip_longest
+
+import magic
+import youtube_dl
 
 dir_path = Path(__file__).absolute().parent
 pipe_path = "/tmp/titapipe"
@@ -39,6 +44,13 @@ def open_pipe_read():
     os.mkfifo(pipe_path)
     pipe_fd = os.open(pipe_path, os.O_RDONLY | os.O_NONBLOCK)
     return os.fdopen(pipe_fd)
+
+def read_pipe_full(pipe):
+    messages = []
+    while not messages or messages[-1]:
+        messages.append(pipe.read())
+        time.sleep(0.001)
+    return ''.join(messages)
 
 # ========== FILES ==========
 

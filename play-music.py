@@ -1,5 +1,8 @@
-import sys, json, os
+import sys
+import json
+import os
 from pathlib import Path
+
 from util import *
 
 COMMANDS = ['pause', 'stop', 'next', 'skip', 'resume', 'leave']

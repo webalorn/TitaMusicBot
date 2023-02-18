@@ -1,9 +1,9 @@
-import time
 import os
-import json
 import sys
-from collections import deque
+import json
+import time
 import threading
+from collections import deque
 from queue import Queue, Empty
 
 from util import *
@@ -96,7 +96,7 @@ while True:
         play_next()
 
     # Commands
-    message = pipe.read()
+    message = read_pipe_full(pipe)
     if message:
         cmd_obj = json.loads(message)
         cmd, args = cmd_obj['cmd'], cmd_obj['args']

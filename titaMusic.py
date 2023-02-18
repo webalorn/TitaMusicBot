@@ -1,8 +1,8 @@
-import asyncio
 import json
 import random
-from collections import deque
+import asyncio
 from pathlib import Path
+from collections import deque
 
 import yaml
 import discord
@@ -152,7 +152,7 @@ async def try_connect_master():
 @tasks.loop(seconds=0.05)
 async def botLoop():
     global MODE_ONCE, MODE_MIX
-    message = pipe.read()
+    message = read_pipe_full(pipe)
     if message:
         if len(bot.voice_clients) == 0:
             await try_connect_master()
