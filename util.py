@@ -2,6 +2,7 @@ import yaml, magic, random
 from pathlib import Path
 import subprocess
 import os, sys
+import copy
 import unicodedata
 import youtube_dl
 from itertools import zip_longest
@@ -97,6 +98,19 @@ COLORS = {
     'bold': '\033[01m',
     'underline': '\033[04m',
 }
+DEFAULT_OPTIONS = {
+    'list_files': False,
+    'list_dirs': True,
+    'hidden': False,
+    'files_first': True,
+    'show_symlink_origin': False,
+    'show_depth': None,
+    'right_side': [],
+    'order_top': [],
+    'order_bottom': [],
+    'hide': [],
+    'sub': {},
+}
 
 """
 Option file: _audio.yaml
@@ -121,16 +135,22 @@ hide:
     - file_name
     - subdir_name
     - ...
+sub: [overwrite configurations of subdirs]
+    "sub_path":
+        [...]
+    subdir_name
+    ...
 
 """
-def build_file_structure(path, depth, max_depth, underline_file):
+
+def build_file_structure(path, depth, max_depth, underline_file, subpath_overwrides):
     if depth >= max_depth:
         return None
     dir_data = {
         'name': path.name,
         'files': [],
         'subdirs': [],
-        'options': {},
+        'options': copy.deepcopy(DEFAULT_OPTIONS),
         'depth': depth,
         'symlink': None,
         'underline': False
@@ -143,13 +163,19 @@ def build_file_structure(path, depth, max_depth, underline_file):
     options_file = path / '_audio.yaml'
     if options_file.exists():
         with options_file.open() as f:
-            dir_data['options'] = yaml.safe_load(f)
-        if dir_data['options'].get('hidden', False):
-            return None
-        if 'show_depth' in dir_data['options']:
-            max_depth = depth + dir_data['options']['show_depth']
+            dir_data['options'] = {**dir_data['options'], **yaml.safe_load(f)}
+    for subpath, sub_options in subpath_overwrides[::-1]:
+        if subpath == path:
+            dir_data['options'] = {**dir_data['options'], **sub_options}
+
+    if dir_data['options']['hidden']:
+        return None
+    if dir_data['options']['show_depth'] is not None:
+        max_depth = depth + dir_data['options']['show_depth']
     
-    to_hide = dir_data['options'].get('hide', [])
+    to_hide = dir_data['options']
+    for subpath, sub_options in dir_data['options']['sub'].items():
+        subpath_overwrides.append((path / subpath, sub_options))
 
     for subpath in path.iterdir():
         if not subpath.name in to_hide:
@@ -157,7 +183,7 @@ def build_file_structure(path, depth, max_depth, underline_file):
                 if subpath.name[0] != '.' and subpath.suffix not in IGNORE_EXTS:
                     dir_data['files'].append(subpath.name)
             elif max_depth > 1:
-                sub_struct = build_file_structure(subpath, depth+1, max_depth, underline_file)
+                sub_struct = build_file_structure(subpath, depth+1, max_depth, underline_file, subpath_overwrides)
                 if sub_struct:
                     dir_data['subdirs'].append(sub_struct)
 
@@ -209,23 +235,23 @@ def print_structure(structure, stack_last_child, column, right_col=None, underli
                 count = f' [{music_count}]'
 
         column.append(f"{indent}{color}{structure['name']}/{COLORS['reset']}{COLORS['yellow_dim']}{count}{COLORS['reset']}")
-        if structure['symlink'] and structure['options'].get('show_symlink_origin', False):
+        if structure['symlink'] and structure['options']['show_symlink_origin']:
             column[-1] += (' -> ' + structure['symlink'])
 
-        at_right = structure["options"].get("right_side", [])
+        at_right = structure["options"]["right_side"]
         subs = []
-        if structure['options'].get('list_files', False):
+        if structure['options']['list_files']:
             subs.extend(structure['files'])
-        if structure['options'].get('list_dirs', True):
-            if structure['options'].get('files_first', True):
+        if structure['options']['list_dirs']:
+            if structure['options']['files_first']:
                 subs.extend(structure['subdirs'])
             else:
                 subs = structure['subdirs'] + subs
 
         subs_top, subs_mid, subs_bottom = [], [], []
-        order_top = structure['options'].get('order_top', [])
+        order_top = structure['options']['order_top']
         order_top.extend(at_right)
-        order_bottom = structure['options'].get('order_bottom', [])
+        order_bottom = structure['options']['order_bottom']
         for sub_struct in subs:
             if get_name(sub_struct) in order_top:
                 subs_top.append(sub_struct)
@@ -251,7 +277,7 @@ def real_len(string):
 
 def show_files_in(path, underline_file=None):
     path = Path(path)
-    structure = build_file_structure(path, 0, 4, underline_file)
+    structure = build_file_structure(path, 0, 4, underline_file, [])
     col_width = os.get_terminal_size().columns // 2
 
     left_col, right_col = [], []
